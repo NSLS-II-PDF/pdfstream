@@ -10,7 +10,7 @@ class XPDVisServerConfig(ServerConfig, VisConfig):
     pass
 
 
-# BaseServerClass = BaseServerZMQ
+#BaseServerClass = BaseServerZMQ
 # BaseServerClass = BaseServerKafkaViz
 BaseServerClass = BaseServerKafkaAnalysis
 
@@ -59,5 +59,6 @@ def make_and_run(
             plt.gcf().canvas.draw_idle()
             plt.gcf().canvas.start_event_loop(0.05)
         server.install_qt_kicker()
-        # server.start(work_during_wait=lambda: plt.pause(0.05))
-        server.start(work_during_wait=f)
+        #server.start()   #ZMQ
+        #server.start(work_during_wait=lambda: plt.pause(0.05))
+        server.start(work_during_wait=f)   #kafka

@@ -7,7 +7,7 @@ class XPDSaveServerConfig(ServerConfig, ExportConfig):
     pass
 
 
-# BaseServerClass = BaseServerZMQ
+#BaseServerClass = BaseServerZMQ
 BaseServerClass = BaseServerKafkaAnalysis
 
 class XPDSaveServer(BaseServerClass):

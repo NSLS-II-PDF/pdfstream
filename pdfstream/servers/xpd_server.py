@@ -53,8 +53,7 @@ class XPDServerConfig(ServerConfig, XPDConfig):
     """The configuration for xpd server."""
     pass
 
-
-# BaseServerClass = BaseServerZMQ
+#BaseServerClass = BaseServerZMQ
 BaseServerClass = BaseServerKafkaRaw
 
 

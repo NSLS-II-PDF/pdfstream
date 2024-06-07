@@ -282,10 +282,10 @@ class AnalysisStream(LiveDispatcher):
                 metadata[k] = data_dict[k]
 
         entry = self._tiled_client.write_dataframe(df, metadata=metadata)
-        try:
-            print(f"f{entry.key = }")
-        except Exception:
-            print("The 'key' attribute is not found in the entry.")
+        #try:
+        #    print(f"f{entry.key = }")
+        #except Exception:
+        #    print("The 'key' attribute is not found in the entry.")
         entry_uri = entry.uri
         entry_uid = self._get_uid_from_uri(entry_uri)
 
