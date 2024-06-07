@@ -1,7 +1,8 @@
 from bluesky.callbacks.best_effort import BestEffortCallback
 
 from pdfstream.callbacks.analysis import Visualizer, VisConfig
-from pdfstream.servers.base import BaseServer as BaseServerZMQ, BaseServerKafkaViz, ServerConfig
+from pdfstream.servers.base import BaseServer as BaseServerZMQ, BaseServerKafkaViz, BaseServerKafkaAnalysis, ServerConfig
+import matplotlib.pyplot as plt
 
 
 class XPDVisServerConfig(ServerConfig, VisConfig):
@@ -9,8 +10,9 @@ class XPDVisServerConfig(ServerConfig, VisConfig):
     pass
 
 
-BaseServerClass = BaseServerZMQ
+# BaseServerClass = BaseServerZMQ
 # BaseServerClass = BaseServerKafkaViz
+BaseServerClass = BaseServerKafkaAnalysis
 
 
 class XPDVisServer(BaseServerClass):
@@ -53,5 +55,9 @@ def make_and_run(
     config.read(cfg_file)
     server = XPDVisServer(config)
     if not test_mode:
+        def f():
+            plt.gcf().canvas.draw_idle()
+            plt.gcf().canvas.start_event_loop(0.05)
         server.install_qt_kicker()
-        server.start()
+        # server.start(work_during_wait=lambda: plt.pause(0.05))
+        server.start(work_during_wait=f)

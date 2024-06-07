@@ -104,13 +104,13 @@ class BaseServerKafkaRaw(RemoteDispatcherKafka):
         self._config = config
         self._kafka_dict = kafka_dict
 
-    def start(self):
+    def start(self, *args, **kwargs):
         try:
             server_message(
                 "Server is started. " +
                 "Listen to {}, topics {}.".format(self._kafka_dict["bootstrap_servers"], self._kafka_dict["topics"])
             )
-            super().start()
+            super().start(*args, **kwargs)
         except KeyboardInterrupt:
             server_message("Server is terminated.")
 
@@ -121,6 +121,10 @@ class BaseServerKafkaRaw(RemoteDispatcherKafka):
 class BaseServerKafkaAnalysis(BaseServerKafkaRaw):
     """The basic server class using Kafka message bus for consuming analysis data."""
     topic = KafkaTopics.analysis.value
+    
+
+class BaseServerKafkaViz(BaseServerKafkaAnalysis):
+    ...
 
 
 class PublisherKafkaAnalysis(PublisherKafka):
@@ -131,7 +135,7 @@ class PublisherKafkaAnalysis(PublisherKafka):
 
 from bluesky_widgets.qt.kafka_dispatcher import QtRemoteDispatcher
 
-class BaseServerKafkaViz(QtRemoteDispatcher):
+class BaseServerKafkaVizQt(QtRemoteDispatcher):
     """NOT WORKING YET!!! The basic server class using Kafka message bus for consuming analysis data for plotting."""
     topic = KafkaTopics.analysis.value
 
