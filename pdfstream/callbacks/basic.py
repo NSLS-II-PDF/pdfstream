@@ -385,6 +385,8 @@ class MyTiffSerializer(TiffSerializer):
             returned = super(MyTiffSerializer, self).event(doc)
         # go back to original data key
         self._file_prefix = _file_prefix
+        # TODO: submit the fix below to the 'suitcase-tiff' repo.
+        self.close()
         return returned
 
 

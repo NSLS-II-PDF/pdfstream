@@ -132,9 +132,9 @@ class XPDFactory:
                 )
             )
 
-            self.analysis[0].subscribe(PublisherZMQ(**pub_config))
-            if self.calibration:
-                self.calibration[0].subscribe(PublisherZMQ(**pub_config))
+            # self.analysis[0].subscribe(PublisherZMQ(**pub_config))
+            # if self.calibration:
+            #     self.calibration[0].subscribe(PublisherZMQ(**pub_config))
 
             # Kafka configuration for Producer:
             kafka_pub_config = _get_kafka_producer_config(KafkaTopics.analysis.value)

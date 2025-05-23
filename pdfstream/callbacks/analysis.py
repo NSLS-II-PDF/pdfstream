@@ -12,7 +12,9 @@ import numpy as np
 from bluesky.callbacks.stream import LiveDispatcher
 from databroker.v1 import Broker
 from event_model import RunRouter
-from pyFAI.azimuthalIntegrator import AzimuthalIntegrator
+# from pyFAI.azimuthalIntegrator import AzimuthalIntegrator
+from pyFAI.integrator.azimuthal import AzimuthalIntegrator
+
 from suitcase.csv import Serializer as CSVSerializer
 from suitcase.json_metadata import Serializer as JsonSerializer
 import pandas
@@ -129,6 +131,8 @@ class AnalysisConfig(BasicAnalysisConfig):
             "rmin": self.getfloat("ANALYSIS", "rmin", fallback=0.),
             "rmax": self.getfloat("ANALYSIS", "rmax", fallback=30.),
             "rstep": self.getfloat("ANALYSIS", "rstep", fallback=0.01),
+            "backgroundfiles": self.get("ANALYSIS", "bkg_file", fallback=""),
+            "bgscales":self.getfloat("ANALYSIS", "bgscale", fallback=1),
             "dataformat": "QA"
         }
 
@@ -185,6 +189,10 @@ class AnalysisStream(LiveDispatcher):
     def start(self, doc, _md=None):
         io.server_message("Receive the start of '{}'.".format(doc["uid"]))
         self.clear_cache()
+        
+        # Get detectors name
+        self._detectors = doc["detectors"]
+        
         # get indeps
         self.indeps = from_start.get_indeps(doc, exclude={"time"})
         # copy the default config and read the user config
@@ -249,6 +257,19 @@ class AnalysisStream(LiveDispatcher):
         except ValueNotFoundError as error:
             self.dark_image = None
             io.server_message("Failed to find the dark: " + str(error))
+
+        stream_desc = {"stream": {"fields": []}}
+        for obj_name in doc["hints"]:
+            stream_desc["stream"]["fields"].extend(doc["hints"][obj_name]["fields"])
+
+        fields_to_add = ["chi_max", "chi_argmax", "gr_max", "gr_argmax"]
+
+        fields_to_add.extend([val for val in doc["object_keys"][self._detectors[0]] if not val.endswith("_image")])
+
+        stream_desc["stream"]["fields"].extend(fields_to_add)
+
+        doc["hints"].update(stream_desc)
+
         return super(AnalysisStream, self).descriptor(doc)
 
     def event(self, doc, _md=None):
@@ -281,11 +302,7 @@ class AnalysisStream(LiveDispatcher):
             if k in data_dict:
                 metadata[k] = data_dict[k]
 
-        entry = self._tiled_client.write_dataframe(df, metadata=metadata)
-        #try:
-        #    print(f"f{entry.key = }")
-        #except Exception:
-        #    print("The 'key' attribute is not found in the entry.")
+        entry = self._tiled_client.write_dataframe(df, metadata=metadata, access_tags=["xpd_sandbox"])
         entry_uri = entry.uri
         entry_uid = self._get_uid_from_uri(entry_uri)
 
@@ -306,6 +323,8 @@ class AnalysisStream(LiveDispatcher):
         if not self.config.save_file:
             filename, directory = None, None
         # process the data output a dictionary
+        import time as ttime
+        start_time = ttime.monotonic()        
         an_data = process(
             raw_img=raw_img,
             ai=self.ai,
@@ -325,9 +344,13 @@ class AnalysisStream(LiveDispatcher):
         # filter the data
         if self.valid_keys:
             an_data = self.filter(an_data)
+        duration = ttime.monotonic() - start_time
+        print(f"process took {duration:.6f} sec.")
+        # from pprint import pformat
+        # print(f"{self.__class__.__name__}:\ndoc={pformat(doc)}\nraw_data={pformat(raw_data)}\nan_data={pformat(an_data)}")
 
-        from pprint import pformat
-        print(f"{self.__class__.__name__}:\ndoc={pformat(doc)}\nraw_data={pformat(raw_data)}\nan_data={pformat(an_data)}")
+        import time as ttime
+        start_time = ttime.monotonic()
 
         # Enter the information to Tiled:
         tiled_dict = {}
@@ -379,14 +402,19 @@ class AnalysisStream(LiveDispatcher):
             tiled_key = f"tiled_{key}"
             entry = self._tiled_client.write_array(
                 an_data[key],
-                metadata={"field": key, **default_md})
+                metadata={"field": key, **default_md},
+                access_tags=["xpd_sandbox"])
             entry_uri = entry.uri
             entry_uid = entry_uri.split("/")[-1]
             tiled_dict[tiled_key] = {"uri": entry_uri, "uid": entry_uid}
             an_data[key] = tiled_dict[tiled_key]["uid"]
 
+        duration = ttime.monotonic() - start_time
+        print(f"Uploading to tiled took {duration:.6f} sec.")
+        
+        from pprint import pformat
         print(f"tiled_dict:\n{pformat(tiled_dict)}")
-        print(f"an_data:\n{pformat(an_data)}")
+        # print(f"an_data:\n{pformat(an_data)}")
 
         # the final output data is a combination of the independent variables and processed data
         return dict(**raw_data, **an_data, **tiled_dict)
@@ -614,14 +642,20 @@ class Exporter(RunRouter):
         super().descriptor(doc)
 
     def event(self, doc):
-        from pprint import pformat
-        print(f"{self.__class__.__name__} (before filling from Tiled): {pformat(doc)}")
+        # from pprint import pformat
+        # print(f"{self.__class__.__name__} (before filling from Tiled): {pformat(doc)}")
+
+        import time as ttime
+        start_time = ttime.monotonic()
 
         data = doc["data"]
         # Get information for all fillable entries in 'an_data' dict from Tiled:
         data = fill_data_from_tiled(data=data, tiled_client=self._tiled_client)
 
-        print(f"{self.__class__.__name__} (after filling from Tiled): {pformat(doc)}")
+        duration = ttime.monotonic() - start_time
+        print(f"Downloading from tiled took {duration:.6f} sec.")
+
+        # print(f"{self.__class__.__name__} (after filling from Tiled): {pformat(doc)}")
 
         io.server_message("Export data in the event {}.".format(doc["seq_num"]))
         return super(Exporter, self).event(doc)
@@ -779,18 +813,12 @@ class Visualizer(RunRouter):
         super().__init__([self._factory])
 
         self._tiled_client = from_uri("https://tiled.nsls2.bnl.gov/api/v1/metadata/xpd/sandbox")
-        print(f"{self._tiled_client = }")
+        print(f"Tiled client: {self._tiled_client}")
 
     def event(self, doc):
-        from pprint import pformat
-        io.server_message(f"{self.__class__.__name__} (before filling from Tiled): {pformat(doc)}")
-
         data = doc["data"]
         # Get information for all fillable entries in 'an_data' dict from Tiled:
         data = fill_data_from_tiled(data=data, tiled_client=self._tiled_client)
-
-        io.server_message(f"{self.__class__.__name__} (after filling from Tiled): {pformat(doc)}")
-
         return super().event(doc)
 
     def show_figs(self):

@@ -55,10 +55,16 @@ def make_and_run(
     config.read(cfg_file)
     server = XPDVisServer(config)
     if not test_mode:
-        def f():
+        # ZMQ:
+        server.install_qt_kicker()
+        kwargs = {}
+        
+        # Kafka:
+        def polling_func():
             plt.gcf().canvas.draw_idle()
             plt.gcf().canvas.start_event_loop(0.05)
-        server.install_qt_kicker()
-        #server.start()   #ZMQ
-        #server.start(work_during_wait=lambda: plt.pause(0.05))
-        server.start(work_during_wait=f)   #kafka
+
+        kwargs = {"work_during_wait": polling_func}
+        
+        # Applies to both servers:
+        server.start(**kwargs)

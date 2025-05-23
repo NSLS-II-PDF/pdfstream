@@ -90,7 +90,7 @@ def _get_kafka_consumer_config(topic):
 
 class KafkaTopics(Enum):
     raw = "xpd"
-    analysis = "xpd-ldrd20-31"
+    analysis = "xpd-analysis"
 
 
 class BaseServerKafkaRaw(RemoteDispatcherKafka):
