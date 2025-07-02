@@ -126,6 +126,7 @@ class XPDFactory:
                 self.calibration[0].subscribe(Publisher(**pub_config))
 
     def __call__(self, name: str, doc: dict) -> tp.Tuple[list, list]:
+        print(f"{name = }\n{doc}\n")
         if name == "start":
             if doc.get(self.config.dark_identifier):
                 # dark frame run
