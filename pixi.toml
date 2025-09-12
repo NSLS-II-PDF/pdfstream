@@ -28,7 +28,8 @@ bluesky-widgets = "*"
 
 [pypi-dependencies]
 # bluesky = { git = "https://github.com/mrakitin/bluesky.git", rev="98c6ebcef8bd406e8333e5b498f1026b655349fd" }
-pdfstream = { path = ".", editable = true }
+# pdfstream = { path = ".", editable = true }
+pdfstream = { git = "https://github.com/NSLS-II-PDF/pdfstream.git", rev="v0.5.x-xpd-datasec" }
 # bluesky = { path = "../bluesky", editable = true }
 
 [tasks.server]
