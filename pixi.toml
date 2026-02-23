@@ -8,7 +8,7 @@ version = "0.1.0"
 [tasks]
 
 [dependencies]
-python = "==3.10"
+python = ">=3.13,<3.14"
 bluesky-base = ">=1.14.1,<2"
 fire = ">=0.7.0,<0.8"
 pyfai = ">=2025.3.0,<2026"
@@ -16,16 +16,25 @@ tiled = ">=0.1.0b28,<0.2"
 databroker = ">=2.0.0b62,<3"
 suitcase-csv = ">=0.3.0,<0.4"
 suitcase-json-metadata = ">=0.2.1,<0.3"
-scikit-beam = ">=0.0.26,<0.0.27"
+scikit-beam = ">=0.0.27,<0.0.28"
 suitcase-tiff = ">=0.4.0,<0.5"
 xpdview = ">=0.5.0,<0.6"
 "diffpy.pdfgui" = ">=3.0.5,<4"
 xray-vision = ">=0.1.1,<0.2"
 setuptools = "<81"
+wheel = "*"
+nslsii = "*"
+bluesky-widgets = "*"
 
 [pypi-dependencies]
-pdfstream = { path = ".", editable = true }
+# bluesky = { git = "https://github.com/mrakitin/bluesky.git", rev="98c6ebcef8bd406e8333e5b498f1026b655349fd" }
+# pdfstream = { path = ".", editable = true }
+pdfstream = { git = "https://github.com/NSLS-II-PDF/pdfstream.git", rev="v0.5.x-xpd-datasec" }
+# bluesky = { path = "../bluesky", editable = true }
 
 [tasks.server]
 # args = ["ini"]
 cmd = "run_server"
+
+[tasks.install_bluesky]
+cmd = "pip install -v git+https://github.com/mrakitin/bluesky.git@xpd-pdfstream"
