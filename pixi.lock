@@ -65,7 +65,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/bluesky-base-1.15.1-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/bluesky-kafka-0.10.0-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/bluesky-live-0.0.8-pyhd8ed1ab_1.conda
-      - conda: https://conda.anaconda.org/conda-forge/noarch/bluesky-tiled-plugins-2.0.0b69-pyhd8ed1ab_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/bluesky-tiled-plugins-2.0.3-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/bluesky-widgets-0.0.18-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/bokeh-3.9.0-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/boltons-25.0.0-pyhd8ed1ab_0.conda
@@ -605,7 +605,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-64/zlib-ng-2.3.3-hceb46e0_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/zstandard-0.25.0-py313h54dd161_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/zstd-1.5.7-hb78ec9c_6.conda
-      - pypi: git+https://github.com/NSLS-II-PDF/pdfstream.git?rev=v0.5.x#065e981481dd0d357871c1bc7c6f4709b7958a70
+      - pypi: git+https://github.com/NSLS-II-PDF/pdfstream.git?rev=v0.5.x#a23916c6be700f9fffeb41b4451a46d0a26d2d9a
 packages:
 - conda: https://conda.anaconda.org/conda-forge/linux-64/_openmp_mutex-4.5-20_gnu.conda
   build_number: 20
@@ -1443,22 +1443,23 @@ packages:
   - pkg:pypi/bluesky-live?source=hash-mapping
   size: 34118
   timestamp: 1734965301665
-- conda: https://conda.anaconda.org/conda-forge/noarch/bluesky-tiled-plugins-2.0.0b69-pyhd8ed1ab_0.conda
-  sha256: e5c16748be7253d2e32a77b71e60f899ffdbba00fdfa1db199c3035b4fd6cad0
-  md5: 88b1eb599b0c909d30d5f41f3d8adb26
+- conda: https://conda.anaconda.org/conda-forge/noarch/bluesky-tiled-plugins-2.0.3-pyhd8ed1ab_0.conda
+  sha256: 1e89032339917b0bf6f3454361a9abc7183d1339f8dbea80df9520606c4f3427
+  md5: d394174a4022a0cdda6f429f64ec5d01
   depends:
   - dask-core
+  - event-model
   - mongoquery
   - python >=3.10
   - pytz
-  - tiled >=0.1.0b4
+  - tiled-client >=0.2.0
   - tzlocal
   license: BSD-3-Clause
   license_family: BSD
   purls:
   - pkg:pypi/bluesky-tiled-plugins?source=hash-mapping
-  size: 25185
-  timestamp: 1759953060851
+  size: 54116
+  timestamp: 1778197672633
 - conda: https://conda.anaconda.org/conda-forge/noarch/bluesky-widgets-0.0.18-pyhd8ed1ab_0.conda
   sha256: 7c6fda08215f94b9e4cc381f24fe302247a51f84b08161c018ce7c987862b31c
   md5: 50d3ef36a8eb006de8f4642b7bdd5317
@@ -6541,7 +6542,7 @@ packages:
   purls: []
   size: 1222481
   timestamp: 1763655398280
-- pypi: git+https://github.com/NSLS-II-PDF/pdfstream.git?rev=v0.5.x#065e981481dd0d357871c1bc7c6f4709b7958a70
+- pypi: git+https://github.com/NSLS-II-PDF/pdfstream.git?rev=v0.5.x#a23916c6be700f9fffeb41b4451a46d0a26d2d9a
   name: pdfstream
   version: 0.5.2
   requires_python: '>=3.7'
