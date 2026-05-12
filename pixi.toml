@@ -35,6 +35,3 @@ pdfstream = { git = "https://github.com/NSLS-II-PDF/pdfstream.git", rev="v0.5.x-
 [tasks.server]
 # args = ["ini"]
 cmd = "run_server"
-
-[tasks.install_bluesky]
-cmd = "pip install -v git+https://github.com/mrakitin/bluesky.git@xpd-pdfstream"
