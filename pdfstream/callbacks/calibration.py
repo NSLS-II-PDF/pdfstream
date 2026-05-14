@@ -68,7 +68,14 @@ class Calibration(LiveDispatcher):
         self.config = config
         self.cache = dict()
         raw_db = self.config.raw_db
-        self.db = from_uri(raw_db) if raw_db else None
+        raw_db_api_key = self.config.raw_db_api_key
+        if raw_db:
+            kwargs_db = {"uri": raw_db}
+            if raw_db_api_key:
+                kwargs_db["api_key"] = raw_db_api_key
+            self.db = from_uri(**kwargs_db)
+        else:
+            self.db = None
         self.test = test
         self.start_doc = {}
         self.event_doc = {}

@@ -43,6 +43,10 @@ class BasicAnalysisConfig(ConfigParser):
         return self.get("DATABASE", "raw_db", fallback="")
 
     @property
+    def raw_db_api_key(self) -> str:
+        return self.get("DATABASE", "raw_db_api_key", fallback="")
+
+    @property
     def dark_identifier(self):
         return self.get("METADATA", "dk_identifier", fallback="dark_frame")
 
@@ -163,7 +167,14 @@ class AnalysisStream(LiveDispatcher):
         self.init_config = config
         self.config: typing.Union[AnalysisConfig, None] = None
         db_name = config.raw_db
-        self.db = from_uri(db_name) if db_name else None
+        db_api_key = config.raw_db_api_key
+        if db_name:
+            kwargs = {"uri": db_name}
+            if db_api_key:
+                kwargs["api_key"] = db_api_key
+            self.db = from_uri(**kwargs)
+        else:
+            self.db = None
         self.valid_keys = config.valid_keys
         self.start_doc = {}
         self.ai = None

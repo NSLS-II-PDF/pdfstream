@@ -32,7 +32,7 @@ class XPDConfig(CalibrationConfig, AnalysisConfig, VisConfig, ExportConfig):
         port = self.getint("PUBLISH TO", "port", fallback=5567)
         prefix = self.get("PUBLISH TO", "prefix", fallback="an").encode()
         return {
-            "address": host,
+            "address": (host, port),
             "prefix": prefix
         }
 
@@ -109,7 +109,11 @@ class XPDFactory:
         self.functionality = self.config.functionality
         # Create a tiled filler that reads filled data from the raw tiled server
         raw_db = config.raw_db
-        raw_client = from_uri(raw_db) if raw_db else None
+        raw_db_api_key = config.raw_db_api_key
+        raw_kwargs = {"uri": raw_db}
+        if raw_db_api_key:
+            raw_kwargs["api_key"] = raw_db_api_key
+        raw_client = from_uri(**raw_kwargs) if raw_db else None
         self.filler = TiledFiller(raw_client) if raw_client else None
         self.analysis = [AnalysisStream(config)]
         self.calibration = [Calibration(config)] if self.functionality["do_calibration"] else []

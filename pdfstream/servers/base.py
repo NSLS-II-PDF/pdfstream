@@ -25,7 +25,7 @@ class ServerConfig(ConfigParser):
 
     @property
     def address(self):
-        return self.host
+        return (self.host, self.port)
 
     @property
     def prefix(self):
