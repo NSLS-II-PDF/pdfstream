@@ -26,6 +26,16 @@ class TiledFiller(CallbackBase):
         self._uid = None
         self._external_keys = {}  # descriptor_uid -> set of external data_key names
         self._stream_names = {}  # descriptor_uid -> stream name
+        self._subscribers = []
+
+    def subscribe(self, callback):
+        """Subscribe a callback to receive filled documents."""
+        self._subscribers.append(callback)
+
+    def _emit(self, name, doc):
+        """Forward a document to all subscribers."""
+        for cb in self._subscribers:
+            cb(name, doc)
 
     def start(self, doc):
         self._uid = doc["uid"]
@@ -33,7 +43,7 @@ class TiledFiller(CallbackBase):
             self._run = self.tiled_client[self._uid]
         except KeyError:
             self._run = None
-        super().start(doc)
+        self._emit("start", doc)
 
     def descriptor(self, doc):
         desc_uid = doc["uid"]
@@ -43,7 +53,7 @@ class TiledFiller(CallbackBase):
             if info.get("external"):
                 external_keys.add(key)
         self._external_keys[desc_uid] = external_keys
-        super().descriptor(doc)
+        self._emit("descriptor", doc)
 
     def event(self, doc):
         desc_uid = doc["descriptor"]
@@ -65,11 +75,11 @@ class TiledFiller(CallbackBase):
                     except (KeyError, IndexError):
                         pass
             doc["filled"] = filled
-        super().event(doc)
+        self._emit("event", doc)
 
     def stop(self, doc):
+        self._emit("stop", doc)
         self._run = None
         self._uid = None
         self._external_keys.clear()
         self._stream_names.clear()
-        super().stop(doc)
