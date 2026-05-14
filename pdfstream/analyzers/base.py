@@ -2,9 +2,10 @@ from configparser import ConfigParser
 
 import numpy as np
 from bluesky.callbacks.core import CallbackBase
+from bluesky_tiled_plugins import BlueskyRun
 
 
-def iter_documents_filled(run):
+def iter_documents_filled(run: BlueskyRun):
     """Iterate filled (name, doc) pairs from a tiled BlueskyRun.
 
     Reconstructs the document stream by reading column data directly from
@@ -61,7 +62,7 @@ def iter_documents_filled(run):
 class AnalyzerConfig(ConfigParser):
     """The base class of configuration of analyzers."""
 
-    def read_run(self, run, source="<BlueskyRun>"):
+    def read_run(self, run: BlueskyRun, source="<BlueskyRun>"):
         """Read the configuration from the analysis result in a bluesky run."""
         # see schemas for the key of configuration
         config_dct = run.metadata["start"]["an_config"]
@@ -71,7 +72,7 @@ class AnalyzerConfig(ConfigParser):
 class Analyzer(CallbackBase):
     """The base class of analyzers."""
 
-    def analyze(self, run):
+    def analyze(self, run: BlueskyRun):
         """Analyze the data in a bluesky run."""
         for name, doc in iter_documents_filled(run):
             # inject the original_db

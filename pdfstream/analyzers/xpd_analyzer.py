@@ -1,5 +1,6 @@
 import typing as tp
 
+from bluesky_tiled_plugins import BlueskyRun
 from tiled.client import from_uri
 
 from pdfstream.analyzers.base import AnalyzerConfig, Analyzer
@@ -38,7 +39,7 @@ def replay(run) -> tp.Tuple[XPDAnalyzerConfig, XPDAnalyzer]:
     return config, analyzer
 
 
-def retrieve_original_run(run) -> tp.Union[None, tp.Any]:
+def retrieve_original_run(run: BlueskyRun) -> tp.Union[None, tp.Any]:
     """Retrieve the original run."""
     start = run.metadata['start']
     if 'original_run_uid' not in start:
