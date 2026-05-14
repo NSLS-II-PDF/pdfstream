@@ -24,6 +24,7 @@ def get_image_from_event(
     img :
         The two dimensional array of image.
     """
+    print(event)
     data = event['data'][det_name]
     return get_average_frame(data)
 

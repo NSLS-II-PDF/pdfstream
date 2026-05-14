@@ -2,8 +2,7 @@
 import itertools
 import typing
 
-from databroker import Header
-from databroker.v1 import Broker
+import numpy as np
 from numpy import ndarray
 
 import pdfstream.io as io
@@ -40,7 +39,7 @@ def query_ai(
 def query_dk_img(
     start: typing.Dict[str, typing.Any],
     det_name: str,
-    db: Broker = None,
+    db=None,
     dk_id_key: str = None
 ) -> typing.Union[ndarray, None]:
     """Find the dark image according to the start document of a run.
@@ -58,7 +57,7 @@ def query_dk_img(
         The name in the background image data in the xarray of the run.
 
     db :
-        The database that contains the background image run.
+        The tiled client catalog that contains the background image run.
 
     dk_id_key :
         The key of dark image id in the start document of background image run.
@@ -68,12 +67,12 @@ def query_dk_img(
     dk_img :
         The raw dark image. If not found, None.
     """
-    dk_run = get_dk_run_v1(start, db, dk_id_key)
-    return get_img_from_run_v1(dk_run, det_name)
+    dk_run = get_dk_run(start, db, dk_id_key)
+    return get_img_from_run(dk_run, det_name)
 
 
-def get_dk_run_v1(start: dict, db: Broker, dk_id_key: str) -> typing.Union[Header]:
-    """Get the dark image run id. If not found, return None."""
+def get_dk_run(start: dict, db, dk_id_key: str):
+    """Get the dark run from the tiled catalog. If not found, raise ValueNotFoundError."""
     if not db:
         raise ValueNotFoundError("db is None.")
     if not dk_id_key:
@@ -87,32 +86,19 @@ def get_dk_run_v1(start: dict, db: Broker, dk_id_key: str) -> typing.Union[Heade
         raise ValueNotFoundError("No such a run in db: {}".format(dk_id))
 
 
-def get_img_from_run_v1(run: Header, det_name: str) -> ndarray:
-    """Read a single image of a detector from a run (databroker v2)."""
-    if det_name not in run.fields():
-        raise ValueNotFoundError("No such a det_name '{}' in run '{}'".format(det_name, run.uid))
+def get_img_from_run(run, det_name: str) -> ndarray:
+    """Read a single image of a detector from a run via tiled client."""
     try:
-        img = mean(run.data(det_name))
-    except StopIteration:
-        raise ValueNotFoundError("No images data for '{}' in run '{}'".format(det_name, run.uid))
+        data = run["primary"][det_name].read()
+    except (KeyError, AttributeError):
+        raise ValueNotFoundError("No such a det_name '{}' in run".format(det_name))
+    img = np.asarray(data)
+    if img.size == 0:
+        raise ValueNotFoundError("No images data for '{}' in run".format(det_name))
+    # Average over all dimensions except the last two (the image dimensions)
     if img.ndim > 2:
         img = img.mean(axis=tuple(range(img.ndim - 2)))
     return img
-
-
-def mean(images: typing.Iterable[ndarray]) -> ndarray:
-    """Calculate mean of an iterator of numpy array."""
-    image_iter = iter(images)
-    avg_image = next(image_iter)
-    count = 1
-    for image in image_iter:
-        avg_image += image
-    return avg_image / count
-
-
-def get_start_of_run_v1(run: Header):
-    """Read the start document of a run (databroker v2)."""
-    return run.start
 
 
 def query_bt_info(

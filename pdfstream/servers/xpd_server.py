@@ -1,15 +1,16 @@
 """The analysis server. Process raw image to PDF."""
 import typing as tp
 
-import databroker.mongo_normalized
 from bluesky.callbacks.zmq import Publisher
-from databroker.v1 import Broker
+from bluesky_tiled_plugins import TiledWriter
 from event_model import RunRouter
+from tiled.client import from_uri
 
 import pdfstream.io as io
 from pdfstream.callbacks.analysis import AnalysisConfig, VisConfig, ExportConfig, AnalysisStream, Exporter, \
     Visualizer
 from pdfstream.callbacks.calibration import CalibrationConfig, Calibration
+from pdfstream.callbacks.filling import TiledFiller
 from pdfstream.servers.base import ServerConfig, BaseServer
 
 
@@ -97,10 +98,7 @@ class XPDRouter(RunRouter):
 
     def __init__(self, config: XPDConfig):
         factory = XPDFactory(config)
-        super(XPDRouter, self).__init__(
-            [factory],
-            handler_registry=databroker.mongo_normalized.discover_handlers()
-        )
+        super(XPDRouter, self).__init__([factory])
 
 
 class XPDFactory:
@@ -109,11 +107,18 @@ class XPDFactory:
     def __init__(self, config: XPDConfig):
         self.config = config
         self.functionality = self.config.functionality
+        # Create a tiled filler that reads filled data from the raw tiled server
+        raw_db = config.raw_db
+        raw_client = from_uri(raw_db) if raw_db else None
+        self.filler = TiledFiller(raw_client) if raw_client else None
         self.analysis = [AnalysisStream(config)]
         self.calibration = [Calibration(config)] if self.functionality["do_calibration"] else []
+        # Wire filler -> analysis stream
+        if self.filler:
+            self.filler.subscribe(self.analysis[0])
         if self.functionality["dump_to_db"] and self.config.an_db:
-            db = Broker.named(self.config.an_db)
-            self.analysis[0].subscribe(db.insert)
+            tw = TiledWriter.from_uri(self.config.an_db, batch_size=1)
+            self.analysis[0].subscribe(tw)
         if self.functionality["export_files"]:
             self.analysis[0].subscribe(Exporter(config))
         if self.functionality["visualize_data"]:
@@ -142,5 +147,7 @@ class XPDFactory:
             else:
                 # light frame run
                 io.server_message("Receive a measurement run. Ready to start processing the data.")
+                if self.filler:
+                    return [self.filler], []
                 return self.analysis, []
         return [], []
