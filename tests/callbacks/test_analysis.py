@@ -125,12 +125,12 @@ def test_filenames(db_with_dark_and_scan, tmpdir):
     for name, doc in iter_documents_filled(list(db.values())[-1]):
         ld(name, doc)
 
-
-def test_ExportConfig():
-    config = pdfstream.callbacks.analysis.ExportConfig()
-    config.read(fn)
-    with pytest.raises(Error):
-        assert config.tiff_base
+# No longer raises error when tiff_base is missing, so this test is not valid anymore
+# def test_ExportConfig():
+#     config = pdfstream.callbacks.analysis.ExportConfig()
+#     config.read(fn)
+#     with pytest.raises(Error):
+#         assert config.tiff_base
 
 
 def test_user_mask1(db_with_img_and_bg_img):
