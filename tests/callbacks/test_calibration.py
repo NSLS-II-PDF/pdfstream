@@ -1,9 +1,9 @@
-from pkg_resources import resource_filename
+from importlib.resources import files
 
 import pdfstream.callbacks.calibration as mod
 from pdfstream.analyzers.base import iter_documents_filled
 
-fn = resource_filename("tests", "configs/xpd_server.ini")
+fn = str(files("tests").joinpath("configs/xpd_server.ini"))
 
 
 def test_Calibration(db_with_dark_and_calib, tmpdir):

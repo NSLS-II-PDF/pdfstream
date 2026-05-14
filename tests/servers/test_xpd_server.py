@@ -1,12 +1,12 @@
 from pathlib import Path
 
 import pytest
-from pkg_resources import resource_filename
+from importlib.resources import files
 
 import pdfstream.servers.xpd_server as mod
 from pdfstream.analyzers.base import iter_documents_filled
 
-fn = resource_filename("tests", "configs/xpd_server.ini")
+fn = str(files("tests").joinpath("configs/xpd_server.ini"))
 
 
 def test_make_and_run():
