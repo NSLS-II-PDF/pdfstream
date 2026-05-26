@@ -167,3 +167,7 @@ rever/
 # pixi environments
 .pixi
 *.egg-info
+
+# Produced by tests
+Ni/
+unnamed_sample/

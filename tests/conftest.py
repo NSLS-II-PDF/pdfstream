@@ -3,14 +3,22 @@ import json
 import uuid
 from pathlib import Path
 
-import databroker
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy
 import numpy as np
 import pyFAI
 import pytest
-from databroker.v2 import Broker
+from bluesky_tiled_plugins import TiledWriter
+from bluesky_tiled_plugins.exporters import json_seq_exporter
 from diffpy.pdfgetx import PDFConfig, PDFGetter
+from tiled.client import from_uri
+from tiled.media_type_registration import default_serialization_registry
+from tiled.server import SimpleTiledServer
+
+# Register the json-seq exporter so run.documents() works with SimpleTiledServer
+default_serialization_registry.register("BlueskyRun", "application/json-seq", json_seq_exporter)
 from importlib.resources import files
 
 from pdfstream.callbacks.composer import gen_stream
@@ -110,24 +118,37 @@ def array_stream():
 
 
 @pytest.fixture(scope="session")
-def db_with_dark_and_light() -> Broker:
-    """A database with a dark run and a light run inside. The last one is light and the first one is dark."""
-    db = databroker.v2.temp()
-    dark_data = [{"pe1_image": np.zeros_like(NI_FRAMES)}]
-    dark_uid = str(uuid.uuid4())
-    for name, doc in gen_stream(dark_data, {"dark_frame": True}, uid=dark_uid):
-        db.v1.insert(name, doc)
-    light_data = [{"pe1_image": NI_FRAMES}]
-    for name, doc in gen_stream(light_data, dict(**START_DOC, sc_dk_field_uid=dark_uid)):
-        db.v1.insert(name, doc)
-    return db
+def tiled_server(tmp_path_factory):
+    """A shared tiled server for all test fixtures."""
+    tmp_dir = tmp_path_factory.mktemp("tiled_data")
+    server = SimpleTiledServer(readable_storage=[str(tmp_dir)])
+    yield server
+    server.close()
+
+
+def _insert_docs(tiled_client, doc_stream):
+    """Insert documents from a gen_stream into a tiled server via TiledWriter."""
+    tw = TiledWriter(tiled_client, batch_size=1)
+    for name, doc in doc_stream:
+        tw(name, doc)
 
 
 @pytest.fixture(scope="session")
-def db_with_img_and_bg_img() -> Broker:
-    """A database with a dark image, a background image run and a data image run inside. The first one is dark
-    image, the second one is background image, the third one is the data image."""
-    db = databroker.v2.temp()
+def db_with_dark_and_light(tiled_server):
+    """A tiled catalog with a dark run and a light run inside."""
+    client = from_uri(tiled_server.uri)
+    dark_data = [{"pe1_image": np.zeros_like(NI_FRAMES)}]
+    dark_uid = str(uuid.uuid4())
+    _insert_docs(client, gen_stream(dark_data, {"dark_frame": True}, uid=dark_uid))
+    light_data = [{"pe1_image": NI_FRAMES}]
+    _insert_docs(client, gen_stream(light_data, dict(**START_DOC, sc_dk_field_uid=dark_uid)))
+    return client
+
+
+@pytest.fixture(scope="session")
+def db_with_img_and_bg_img(tiled_server):
+    """A tiled catalog with a dark image, a background image run and a data image run inside."""
+    client = from_uri(tiled_server.uri)
     sample_name = "Kapton"
     dk_uid = str(uuid.uuid4())
     dk_meta = {"dark_frame": True}
@@ -136,23 +157,19 @@ def db_with_img_and_bg_img() -> Broker:
     bg_data = [{"pe1_image": 2 * np.ones_like(NI_FRAMES)}]
     img_data = [{"pe1_image": 2 * np.ones_like(NI_FRAMES) + NI_FRAMES}]
     img_meta = dict(**START_DOC, bkgd_sample_name=sample_name, sc_dk_field_uid=dk_uid, sample_name="Ni")
-    for name, doc in gen_stream(dk_data, dk_meta, uid=dk_uid):
-        db.v1.insert(name, doc)
-    for name, doc in gen_stream(bg_data, bg_meta):
-        db.v1.insert(name, doc)
-    for name, doc in gen_stream(img_data, img_meta):
-        db.v1.insert(name, doc)
-    return db
+    _insert_docs(client, gen_stream(dk_data, dk_meta, uid=dk_uid))
+    _insert_docs(client, gen_stream(bg_data, bg_meta))
+    _insert_docs(client, gen_stream(img_data, img_meta))
+    return client
 
 
 @pytest.fixture(scope="session")
-def db_with_dark_and_scan() -> Broker:
-    """A database with a dark run and a motor scan inside. The last one is light and the first one is dark."""
-    db = databroker.v2.temp()
+def db_with_dark_and_scan(tiled_server):
+    """A tiled catalog with a dark run and a motor scan inside."""
+    client = from_uri(tiled_server.uri)
     dark_data = [{"pe1_image": np.zeros_like(NI_FRAMES)}]
     dark_uid = str(uuid.uuid4())
-    for name, doc in gen_stream(dark_data, {"dark_frame": True}, uid=dark_uid):
-        db.v1.insert(name, doc)
+    _insert_docs(client, gen_stream(dark_data, {"dark_frame": True}, uid=dark_uid))
     light_data = [
         {"pe1_image": NI_FRAMES, "temperature": 0},
         {"pe1_image": NI_FRAMES, "temperature": 1},
@@ -166,21 +183,19 @@ def db_with_dark_and_scan() -> Broker:
             "sample_name": "Ni"
         }
     )
-    for name, doc in gen_stream(light_data, start):
-        db.v1.insert(name, doc)
-    return db
+    _insert_docs(client, gen_stream(light_data, start))
+    return client
 
 
 @pytest.fixture(scope="session")
-def db_with_dark_and_calib() -> Broker:
-    """A database with a dark run and a light run inside. The last one is light and the first one is dark."""
-    db = databroker.v2.temp()
+def db_with_dark_and_calib(tiled_server):
+    """A tiled catalog with a dark run and a calibration run inside."""
+    client = from_uri(tiled_server.uri)
     dark_data = [{"pe1_image": np.zeros_like(NI_FRAMES)}]
     dark_uid = str(uuid.uuid4())
-    for name, doc in gen_stream(dark_data, {"dark_frame": True}, uid=dark_uid):
-        db.v1.insert(name, doc)
+    _insert_docs(client, gen_stream(dark_data, {"dark_frame": True}, uid=dark_uid))
     light_data = [{"pe1_image": NI_FRAMES}]
-    for name, doc in gen_stream(
+    _insert_docs(client, gen_stream(
         light_data, dict(
             sample_composition="Ni",
             sc_dk_field_uid=dark_uid,
@@ -188,16 +203,14 @@ def db_with_dark_and_calib() -> Broker:
             is_calibration=True,
             bt_wavelength=0.1917
         )
-    ):
-        db.v1.insert(name, doc)
-    return db
+    ))
+    return client
 
 
 @pytest.fixture(scope="session")
-def db_with_dark_bg_no_calib() -> Broker:
-    """A database with a dark image, a background image run and a data image run inside. The first one is dark
-    image, the second one is background image, the third one is the data image."""
-    db = databroker.v2.temp()
+def db_with_dark_bg_no_calib(tiled_server):
+    """A tiled catalog with a dark image, a background image run and a data image run without calibration."""
+    client = from_uri(tiled_server.uri)
     sample_name = "Kapton"
     dk_uid = str(uuid.uuid4())
     dk_meta = {"dark_frame": True}
@@ -207,10 +220,7 @@ def db_with_dark_bg_no_calib() -> Broker:
     img_data = [{"pe1_image": 2 * np.ones_like(NI_FRAMES) + NI_FRAMES}]
     img_meta = dict(**START_DOC, bkgd_sample_name=sample_name, sc_dk_field_uid=dk_uid, sample_name="Ni")
     img_meta.pop("calibration_md")
-    for name, doc in gen_stream(dk_data, dk_meta, uid=dk_uid):
-        db.v1.insert(name, doc)
-    for name, doc in gen_stream(bg_data, bg_meta):
-        db.v1.insert(name, doc)
-    for name, doc in gen_stream(img_data, img_meta):
-        db.v1.insert(name, doc)
-    return db
+    _insert_docs(client, gen_stream(dk_data, dk_meta, uid=dk_uid))
+    _insert_docs(client, gen_stream(bg_data, bg_meta))
+    _insert_docs(client, gen_stream(img_data, img_meta))
+    return client

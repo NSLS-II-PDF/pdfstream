@@ -12,5 +12,5 @@ def test_XPDAnalyzer(db_with_img_and_bg_img, tmpdir):
     config.calib_base = str(tmpdir)
     config.read(fn)
     analyzer = mod.XPDAnalyzer(config)
-    run = raw_db[-1]
+    run = raw_db.values().last()
     analyzer.analyze(run)

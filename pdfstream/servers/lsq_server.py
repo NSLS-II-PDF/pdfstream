@@ -6,11 +6,11 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.optimize as opt
-from area_detector_handlers.handlers import AreaDetectorTiffHandler
+# from area_detector_handlers.handlers import AreaDetectorTiffHandler
 from bluesky.callbacks.stream import LiveDispatcher
 from diffpy.pdfgetx import PDFGetter, PDFConfig
 from event_model import RunRouter
-from ophyd.sim import NumpySeqHandler
+# from ophyd.sim import NumpySeqHandler
 
 import pdfstream.units as units
 from pdfstream.callbacks.basic import LiveWaterfall, NumpyExporter

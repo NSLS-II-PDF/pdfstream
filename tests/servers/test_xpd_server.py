@@ -4,6 +4,7 @@ import pytest
 from importlib.resources import files
 
 import pdfstream.servers.xpd_server as mod
+from pdfstream.analyzers.base import iter_documents_filled
 
 fn = str(files("tests").joinpath("configs/xpd_server.ini"))
 
@@ -17,7 +18,6 @@ def test_XPDServer(tmpdir):
     config.read(fn)
     config.tiff_base = str(tmpdir)
     config.calib_base = str(tmpdir)
-    config["FUNCTIONALITY"]["send_messages"] = "True"
     mod.XPDServer(config)
 
 
@@ -47,11 +47,11 @@ def test_XPDRouter(db_with_img_and_bg_img, tmpdir):
     config.tiff_base = str(tmpdir)
     config.calib_base = str(tmpdir)
     cb = mod.XPDRouter(config)
-    for name, doc in raw_db[-1].canonical(fill="yes", strict_order=True):
+    for name, doc in iter_documents_filled(list(raw_db.values())[-1]):
         cb(name, doc)
     tiff_base = Path(config.tiff_base)
     assert len(list(tiff_base.rglob("*.tiff"))) > 0
-    assert len(list(tiff_base.rglob("*.json"))) > 0
+    assert len(list(tiff_base.rglob("*.yaml"))) > 0
     assert len(list(tiff_base.rglob("*.csv"))) > 0
 
 
@@ -62,9 +62,9 @@ def test_XPDRouter_no_calib(db_with_dark_bg_no_calib, tmpdir):
     config.tiff_base = str(tmpdir)
     config.calib_base = str(tmpdir)
     cb = mod.XPDRouter(config)
-    for name, doc in raw_db[-1].canonical(fill="yes", strict_order=True):
+    for name, doc in iter_documents_filled(list(raw_db.values())[-1]):
         cb(name, doc)
     tiff_base = Path(config.tiff_base)
     assert len(list(tiff_base.rglob("*.tiff"))) > 0
-    assert len(list(tiff_base.rglob("*.json"))) > 0
+    assert len(list(tiff_base.rglob("*.yaml"))) > 0
     assert len(list(tiff_base.rglob("*.csv"))) > 0

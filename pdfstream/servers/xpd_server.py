@@ -1,15 +1,16 @@
 """The analysis server. Process raw image to PDF."""
 import typing as tp
 
-import databroker.mongo_normalized
 from bluesky.callbacks.zmq import Publisher
-from databroker.v1 import Broker
+from bluesky_tiled_plugins import TiledWriter
 from event_model import RunRouter
+from tiled.client import from_uri
 
 import pdfstream.io as io
 from pdfstream.callbacks.analysis import AnalysisConfig, VisConfig, ExportConfig, AnalysisStream, Exporter, \
     Visualizer
 from pdfstream.callbacks.calibration import CalibrationConfig, Calibration
+from pdfstream.callbacks.filling import TiledSubscriber
 from pdfstream.servers.base import ServerConfig, BaseServer
 
 
@@ -31,9 +32,14 @@ class XPDConfig(CalibrationConfig, AnalysisConfig, VisConfig, ExportConfig):
         port = self.getint("PUBLISH TO", "port", fallback=5567)
         prefix = self.get("PUBLISH TO", "prefix", fallback="an").encode()
         return {
-            "address": host,
+            "address": (host, port),
             "prefix": prefix
         }
+
+    @property
+    def data_key(self) -> str:
+        """The dataset name under the primary stream to subscribe to via tiled streaming."""
+        return self.get("METADATA", "data_key", fallback="pe1_image")
 
     @property
     def functionality(self) -> dict:
@@ -97,10 +103,7 @@ class XPDRouter(RunRouter):
 
     def __init__(self, config: XPDConfig):
         factory = XPDFactory(config)
-        super(XPDRouter, self).__init__(
-            [factory],
-            handler_registry=databroker.mongo_normalized.discover_handlers()
-        )
+        super(XPDRouter, self).__init__([factory])
 
 
 class XPDFactory:
@@ -109,11 +112,25 @@ class XPDFactory:
     def __init__(self, config: XPDConfig):
         self.config = config
         self.functionality = self.config.functionality
+        # Create a tiled subscriber that streams data from the raw tiled server
+        raw_db = config.raw_db
+        raw_db_api_key = config.raw_db_api_key
+        raw_kwargs = {"uri": raw_db}
+        if raw_db_api_key:
+            raw_kwargs["api_key"] = raw_db_api_key
+        raw_client = from_uri(**raw_kwargs) if raw_db else None
+        self.subscriber = (
+            TiledSubscriber(raw_client, data_key=config.data_key)
+            if raw_client else None
+        )
         self.analysis = [AnalysisStream(config)]
         self.calibration = [Calibration(config)] if self.functionality["do_calibration"] else []
+        # Wire subscriber -> analysis stream
+        if self.subscriber:
+            self.subscriber.subscribe(self.analysis[0])
         if self.functionality["dump_to_db"] and self.config.an_db:
-            db = Broker.named(self.config.an_db)
-            self.analysis[0].subscribe(db.insert)
+            tw = TiledWriter.from_uri(self.config.an_db, batch_size=1)
+            self.analysis[0].subscribe(tw)
         if self.functionality["export_files"]:
             self.analysis[0].subscribe(Exporter(config))
         if self.functionality["visualize_data"]:
@@ -139,5 +156,7 @@ class XPDFactory:
             else:
                 # light frame run
                 io.server_message("Receive a measurement run. Ready to start processing the data.")
+                if self.subscriber:
+                    return [self.subscriber], []
                 return self.analysis, []
         return [], []

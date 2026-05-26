@@ -8,7 +8,6 @@ import yaml
 from bluesky.callbacks import CallbackBase
 from bluesky.callbacks.best_effort import LivePlot, LiveScatter
 from bluesky.callbacks.broker import LiveImage
-from databroker.v2 import Broker
 from event_model import unpack_event_page
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
@@ -182,7 +181,7 @@ class LiveMaskedImage(LiveImage):
 
     def __init__(self, field: str, msk_field: str, *, cmap: str, norm: tp.Callable = None,
                  limit_func: tp.Callable = None, auto_draw: bool = True, interpolation: str = None,
-                 window_title: str = None, db: Broker = None):
+                 window_title: str = None, db=None):
         self.msk_field = msk_field
         self.msk_array = None
         super(LiveMaskedImage, self).__init__(

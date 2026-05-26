@@ -2,15 +2,15 @@ import copy
 import datetime
 import typing
 import typing as tp
-from configparser import ConfigParser
+from configparser import ConfigParser, NoOptionError
 from pathlib import Path
 
 import event_model
 import matplotlib.pyplot as plt
 import numpy as np
 from bluesky.callbacks.stream import LiveDispatcher
-from databroker.v1 import Broker
 from event_model import RunRouter
+from tiled.client import from_uri
 from pyFAI.integrator.azimuthal import AzimuthalIntegrator
 from suitcase.csv import Serializer as CSVSerializer
 from suitcase.json_metadata import Serializer as JsonSerializer
@@ -41,6 +41,10 @@ class BasicAnalysisConfig(ConfigParser):
     @property
     def raw_db(self) -> str:
         return self.get("DATABASE", "raw_db", fallback="")
+
+    @property
+    def raw_db_api_key(self) -> str:
+        return self.get("DATABASE", "raw_db_api_key", fallback="")
 
     @property
     def dark_identifier(self):
@@ -163,7 +167,14 @@ class AnalysisStream(LiveDispatcher):
         self.init_config = config
         self.config: typing.Union[AnalysisConfig, None] = None
         db_name = config.raw_db
-        self.db = Broker.named(db_name) if db_name else None
+        db_api_key = config.raw_db_api_key
+        if db_name:
+            kwargs = {"uri": db_name}
+            if db_api_key:
+                kwargs["api_key"] = db_api_key
+            self.db = from_uri(**kwargs)
+        else:
+            self.db = None
         self.valid_keys = config.valid_keys
         self.start_doc = {}
         self.ai = None
@@ -419,7 +430,10 @@ class ExportConfig(ConfigParser):
     @property
     def tiff_base(self):
         """Settings for the base folder."""
-        dir_path = self.get("SUITCASE", "tiff_base")
+        try:
+            dir_path = self.get("SUITCASE", "tiff_base")
+        except NoOptionError:
+            dir_path = None
         if not dir_path:
             dir_path = "~/pdfstream_data"
             io.server_message("Missing tiff_base in configuration. Use '{}'".format(dir_path))
