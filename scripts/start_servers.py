@@ -85,6 +85,7 @@ bkgd_sample_name_key = bkgd_sample_name
 sample_name_key = sample_name
 detector_key = detector
 calibrant_key = sample_composition
+data_key = xsp
 
 [CALIBRATION]
 calib_base = {DEFAULT_CALIB_DIR}

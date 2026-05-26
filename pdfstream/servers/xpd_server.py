@@ -10,7 +10,7 @@ import pdfstream.io as io
 from pdfstream.callbacks.analysis import AnalysisConfig, VisConfig, ExportConfig, AnalysisStream, Exporter, \
     Visualizer
 from pdfstream.callbacks.calibration import CalibrationConfig, Calibration
-from pdfstream.callbacks.filling import TiledFiller
+from pdfstream.callbacks.filling import TiledSubscriber
 from pdfstream.servers.base import ServerConfig, BaseServer
 
 
@@ -35,6 +35,11 @@ class XPDConfig(CalibrationConfig, AnalysisConfig, VisConfig, ExportConfig):
             "address": (host, port),
             "prefix": prefix
         }
+
+    @property
+    def data_key(self) -> str:
+        """The dataset name under the primary stream to subscribe to via tiled streaming."""
+        return self.get("METADATA", "data_key", fallback="pe1_image")
 
     @property
     def functionality(self) -> dict:
@@ -107,19 +112,22 @@ class XPDFactory:
     def __init__(self, config: XPDConfig):
         self.config = config
         self.functionality = self.config.functionality
-        # Create a tiled filler that reads filled data from the raw tiled server
+        # Create a tiled subscriber that streams data from the raw tiled server
         raw_db = config.raw_db
         raw_db_api_key = config.raw_db_api_key
         raw_kwargs = {"uri": raw_db}
         if raw_db_api_key:
             raw_kwargs["api_key"] = raw_db_api_key
         raw_client = from_uri(**raw_kwargs) if raw_db else None
-        self.filler = TiledFiller(raw_client) if raw_client else None
+        self.subscriber = (
+            TiledSubscriber(raw_client, data_key=config.data_key)
+            if raw_client else None
+        )
         self.analysis = [AnalysisStream(config)]
         self.calibration = [Calibration(config)] if self.functionality["do_calibration"] else []
-        # Wire filler -> analysis stream
-        if self.filler:
-            self.filler.subscribe(self.analysis[0])
+        # Wire subscriber -> analysis stream
+        if self.subscriber:
+            self.subscriber.subscribe(self.analysis[0])
         if self.functionality["dump_to_db"] and self.config.an_db:
             tw = TiledWriter.from_uri(self.config.an_db, batch_size=1)
             self.analysis[0].subscribe(tw)
@@ -148,7 +156,7 @@ class XPDFactory:
             else:
                 # light frame run
                 io.server_message("Receive a measurement run. Ready to start processing the data.")
-                if self.filler:
-                    return [self.filler], []
+                if self.subscriber:
+                    return [self.subscriber], []
                 return self.analysis, []
         return [], []
