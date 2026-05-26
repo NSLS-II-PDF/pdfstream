@@ -1,7 +1,24 @@
 #!/bin/bash
 # install the extra non-open-source packages for pdfstream
 
-set -e
-echo "Install the diffpy.pdfgetx"
-PDFGETX=$1
-python -m pip install "$PDFGETX"
+set -euo pipefail
+
+echo "=== pdfstream_install ==="
+echo "Installing extra non-open-source packages for pdfstream"
+echo ""
+
+PDFGETX=${1:?"Error: path to diffpy.pdfgetx package must be provided as first argument"}
+
+echo "Package source: $PDFGETX"
+echo "Python executable: $(which python)"
+echo "Python version: $(python --version 2>&1)"
+echo "pip version: $(python -m pip --version)"
+echo ""
+
+echo "Installing diffpy.pdfgetx..."
+python -m pip install -v "$PDFGETX"
+
+echo ""
+echo "Installation complete."
+echo "Installed packages:"
+python -m pip show diffpy.pdfgetx 2>/dev/null | grep -E '^(Name|Version|Location)' || echo "  (could not query package info)"

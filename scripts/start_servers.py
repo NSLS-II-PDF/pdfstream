@@ -21,13 +21,17 @@ Usage:
     python scripts/start_servers.py --no-save --no-vis
 """
 import argparse
+import logging
 import multiprocessing
 import os
 import signal
 import sys
 import tempfile
+import time
 import warnings
 from pathlib import Path
+
+logger = logging.getLogger("pdfstream.servers")
 
 # Default port assignments
 RAW_PROXY_PORT = 5568       # proxy publishes raw data here; xpd_server subscribes
@@ -154,44 +158,60 @@ def _write_default_config(tmpdir, name, content):
 
 def run_analyzed_proxy():
     """Run a ZMQ proxy for analyzed data (Publisher → Proxy → RemoteDispatchers)."""
+    logger.debug("Importing bluesky.callbacks.zmq.Proxy")
     from bluesky.callbacks.zmq import Proxy
+    logger.info(f"Analyzed proxy binding in={HOST}:{ANALYZED_IN_PORT} out={HOST}:{ANALYZED_OUT_PORT}")
     proxy = Proxy(
         in_address=(HOST, ANALYZED_IN_PORT),
         out_address=(HOST, ANALYZED_OUT_PORT),
     )
+    logger.debug("Analyzed proxy entering event loop")
     proxy.start()
 
 
 def run_xpd_server(cfg_file):
     """Run the XPD analysis server."""
     warnings.simplefilter("ignore")
+    logger.debug(f"Loading xpd_server config from: {cfg_file}")
     from pdfstream.servers.xpd_server import XPDServerConfig, XPDServer
     config = XPDServerConfig()
     config.read(cfg_file)
+    logger.info(f"xpd_server config loaded: calibration={config.functionality.get('do_calibration')}, "
+                f"export={config.functionality.get('export_files')}, "
+                f"visualize={config.functionality.get('visualize_data')}")
     server = XPDServer(config)
     if config.functionality["visualize_data"]:
+        logger.debug("Installing Qt kicker for xpd_server visualization")
         server.install_qt_kicker()
+    logger.info("xpd_server starting event loop")
     server.start()
 
 
 def run_save_server(cfg_file):
     """Run the XPD save server."""
     warnings.simplefilter("ignore")
+    logger.debug(f"Loading xpdsave_server config from: {cfg_file}")
     from pdfstream.servers.xpdsave_server import XPDSaveServerConfig, XPDSaveServer
     config = XPDSaveServerConfig()
     config.read(cfg_file)
+    logger.info("xpdsave_server config loaded successfully")
     server = XPDSaveServer(config)
+    logger.info("xpdsave_server starting event loop")
     server.start()
 
 
 def run_vis_server(cfg_file):
     """Run the XPD visualization server."""
     warnings.simplefilter("ignore")
+    logger.debug(f"Loading xpdvis_server config from: {cfg_file}")
     from pdfstream.servers.xpdvis_server import XPDVisServerConfig, XPDVisServer
     config = XPDVisServerConfig()
     config.read(cfg_file)
+    logger.info("xpdvis_server config loaded successfully")
     server = XPDVisServer(config)
+    logger.debug("Installing Qt kicker for xpdvis_server")
     server.install_qt_kicker()
+    logger.info("xpdvis_server starting event loop")
     server.start()
 
 
@@ -209,7 +229,23 @@ def main():
     parser.add_argument("--no-vis", action="store_true", help="Skip starting the vis server.")
     parser.add_argument("--print-configs", action="store_true",
                         help="Print the default configs to stdout and exit (useful as a starting point).")
+    parser.add_argument("-v", "--verbose", action="count", default=0,
+                        help="Increase verbosity (-v for INFO, -vv for DEBUG).")
     args = parser.parse_args()
+
+    # Configure logging based on verbosity
+    if args.verbose >= 2:
+        log_level = logging.DEBUG
+    elif args.verbose >= 1:
+        log_level = logging.INFO
+    else:
+        log_level = logging.WARNING
+    logging.basicConfig(
+        level=log_level,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%H:%M:%S",
+    )
+    logger.debug(f"Verbosity level: {args.verbose} (log_level={logging.getLevelName(log_level)})")
 
     if args.print_configs:
         print("=" * 60)
@@ -228,10 +264,12 @@ def main():
 
     # Generate default configs for any that weren't provided
     tmpdir = tempfile.mkdtemp(prefix="pdfstream_configs_")
+    logger.debug(f"Temporary config directory: {tmpdir}")
 
     xpd_cfg = args.xpd_config or _write_default_config(tmpdir, "xpd_server", _default_xpd_config())
     save_cfg = args.save_config or _write_default_config(tmpdir, "xpdsave_server", _default_save_config())
     vis_cfg = args.vis_config or _write_default_config(tmpdir, "xpdvis_server", _default_vis_config())
+    logger.debug(f"Config paths: xpd={xpd_cfg}, save={save_cfg}, vis={vis_cfg}")
 
     if not args.xpd_config:
         print(f"Using generated xpd config:  {xpd_cfg}")
@@ -248,32 +286,50 @@ def main():
         p_proxy = multiprocessing.Process(target=run_analyzed_proxy, name="analyzed_proxy", daemon=True)
         p_proxy.start()
         processes.append(p_proxy)
+        logger.info(f"Analyzed proxy process started (pid={p_proxy.pid})")
 
     print(f"Starting xpd_server      listening={HOST}:{RAW_PROXY_PORT}  publishing={HOST}:{ANALYZED_IN_PORT}")
+    logger.debug(f"xpd_server config: {xpd_cfg}")
     p_xpd = multiprocessing.Process(target=run_xpd_server, args=(xpd_cfg,), name="xpd_server")
     p_xpd.start()
     processes.append(p_xpd)
+    logger.info(f"xpd_server process started (pid={p_xpd.pid})")
 
     if not args.no_save:
         print(f"Starting xpdsave_server  listening={HOST}:{ANALYZED_OUT_PORT}")
+        logger.debug(f"xpdsave_server config: {save_cfg}")
         p_save = multiprocessing.Process(target=run_save_server, args=(save_cfg,), name="xpdsave_server")
         p_save.start()
         processes.append(p_save)
+        logger.info(f"xpdsave_server process started (pid={p_save.pid})")
+    else:
+        logger.info("Skipping xpdsave_server (--no-save)")
 
     if not args.no_vis:
         print(f"Starting xpdvis_server   listening={HOST}:{ANALYZED_OUT_PORT}")
+        logger.debug(f"xpdvis_server config: {vis_cfg}")
         p_vis = multiprocessing.Process(target=run_vis_server, args=(vis_cfg,), name="xpdvis_server")
         p_vis.start()
         processes.append(p_vis)
+        logger.info(f"xpdvis_server process started (pid={p_vis.pid})")
+    else:
+        logger.info("Skipping xpdvis_server (--no-vis)")
 
     print(f"\n{len(processes)} server(s) running. Press Ctrl+C to stop all.")
+    logger.debug(f"All process PIDs: {[p.pid for p in processes]}")
 
     def shutdown(sig, frame):
         print("\nShutting down servers...")
         for p in processes:
+            logger.info(f"Terminating {p.name} (pid={p.pid})")
             p.terminate()
         for p in processes:
             p.join(timeout=5)
+            if p.is_alive():
+                logger.warning(f"{p.name} (pid={p.pid}) did not exit in time, killing")
+                p.kill()
+            else:
+                logger.info(f"{p.name} (pid={p.pid}) exited with code {p.exitcode}")
         sys.exit(0)
 
     signal.signal(signal.SIGINT, shutdown)
