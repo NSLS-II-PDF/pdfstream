@@ -174,6 +174,11 @@ class AnalysisStream(LiveDispatcher):
         self.indep2unit = None
         self.dirc = None
         self.file_prefix = None
+        # lazy-open state: defer super().start() until first image descriptor
+        self._pending_start: typing.Union[dict, None] = None
+        self._output_started: bool = False
+        self._image_desc_uids: set = set()
+        self._image_key_by_desc: dict = {}
 
     def start(self, doc, _md=None):
         io.server_message("Receive the start of '{}'.".format(doc["uid"]))
@@ -222,16 +227,34 @@ class AnalysisStream(LiveDispatcher):
             self.dirc.mkdir(parents=True, exist_ok=True)
         # create file prefix
         self.file_prefix = fp.format(start=new_start)
-        return super(AnalysisStream, self).start(new_start)
+        # Cache start doc and defer opening the output run until we see an
+        # image descriptor.  This prevents empty "success" sandbox runs when
+        # the acquisition produces multiple streams (baseline, fluorescence,
+        # scattering) and the first descriptor carries no 2D image data.
+        self._pending_start = new_start
+        self._output_started = False
+        self._image_desc_uids.clear()
+        self._image_key_by_desc.clear()
 
     def event_page(self, doc):
         for event_doc in event_model.unpack_event_page(doc):
             self.event(event_doc)
 
     def descriptor(self, doc):
+        # Skip descriptors that carry no 2D image — e.g. baseline, fluorescence,
+        # fluorescence_quality streams in a multimodal xray-uvvis acquisition.
+        try:
+            image_key = from_desc.find_one_image(doc)
+        except ValueNotFoundError:
+            io.server_message(
+                "No image found in stream '{}'; skipping descriptor.".format(doc.get("name"))
+            )
+            return
+
         self.indep2unit = from_desc.get_units(doc["data_keys"], self.indeps)
-        self.image_key = from_desc.find_one_image(doc)
+        self.image_key = image_key
         io.server_message("Find the data key '{}' in the stream '{}'.".format(self.image_key, doc["name"]))
+
         try:
             self.dark_image = from_start.query_dk_img(
                 self.start_doc,
@@ -242,9 +265,23 @@ class AnalysisStream(LiveDispatcher):
         except ValueNotFoundError as error:
             self.dark_image = None
             io.server_message("Failed to find the dark: " + str(error))
+
+        # Lazily open the output run on the first valid image descriptor so
+        # that runs with no scattering data never produce an empty sandbox run.
+        if not self._output_started:
+            super(AnalysisStream, self).start(self._pending_start)
+            self._output_started = True
+
+        self._image_desc_uids.add(doc["uid"])
+        self._image_key_by_desc[doc["uid"]] = image_key
         return super(AnalysisStream, self).descriptor(doc)
 
     def event(self, doc, _md=None):
+        # Ignore events whose descriptor was not accepted (non-image streams).
+        if doc.get("descriptor") not in self._image_desc_uids:
+            return
+        # Restore per-descriptor image key in case multiple image streams exist.
+        self.image_key = self._image_key_by_desc[doc["descriptor"]]
         io.server_message("Start processing the event {}.".format(doc["seq_num"]))
         data = self.process_data(doc)
         io.server_message("Finish processing the event {}.".format(doc["seq_num"]))
@@ -252,6 +289,14 @@ class AnalysisStream(LiveDispatcher):
 
     def stop(self, doc, _md=None):
         io.server_message("Receive the stop of '{}'.".format(doc["run_start"]))
+        if not self._output_started:
+            # No image descriptors were seen — do not emit an empty output run.
+            io.server_message(
+                "No image descriptors processed for '{}'; skipping output run.".format(
+                    doc.get("run_start")
+                )
+            )
+            return
         return super(AnalysisStream, self).stop(doc)
 
     def process_data(self, doc) -> dict:
@@ -300,6 +345,10 @@ class AnalysisStream(LiveDispatcher):
         self.bt_info = {}
         self.image_key = ""
         self.dark_image = None
+        self._pending_start = None
+        self._output_started = False
+        self._image_desc_uids = set()
+        self._image_key_by_desc = {}
 
 
 def write_out_pdfgetter(pdfgetter: PDFGetter, dirc: str, filename: str):
